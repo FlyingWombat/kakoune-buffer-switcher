@@ -1,6 +1,7 @@
 # we assume that a buffer name will never contain newlines (not exactly true, but who cares)
 
 face global BufferSwitcherCurrent black,green
+face global BufferSwitcherModified +u
 
 define-command buffer-switcher %{
     try %{
@@ -8,16 +9,26 @@ define-command buffer-switcher %{
     } catch %{
         eval -save-regs '"/' %{
             reg / "^\Q%val{bufname}\E$"
-            reg dquote %val{buflist}
-
             edit -scratch *buffer-switcher*
-            exec '<a-P>)<a-,>i<ret><esc>'
-            exec '%<a-s>'
-            # remove *debug* buffer
-            exec -draft '<a-k>^\*debug\*$<ret>d'
+            evaluate-commands -draft -no-hooks -save-regs %{/"} -buffer * %{
+                set-register \" "%val{bufname}	%val{modified}"
+                buffer "*buffer-switcher*"
+                execute-keys %{gjo<c-r>"}
+            }
+            execute-keys -draft '%s^\Q*buffer-switcher*\E<ret>x<a-d>gg<a-d>'
+            # highlight modified buffers
+            evaluate-commands -draft -no-hooks -save-regs '/"' %{
+                try %{
+                    exec -draft '%s\tfalse$<ret><a-d>'
+                } catch %{ }
+                try %{
+                    exec -draft -save-regs '' '%s\ttrue$<ret><a-d>xH*'
+                    addhl buffer/ regex "%reg{/}" 0:BufferSwitcherModified
+                } catch %{ }
+            }
             try %{
                 # select current one
-                exec '<a-k><ret>'
+                exec '%<a-s><a-k><ret>'
                 # also highlight it in green
                 addhl buffer/ regex "%reg{/}" 0:BufferSwitcherCurrent
             } catch %{
